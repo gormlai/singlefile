@@ -33,4 +33,139 @@
 
 #include <SDL2/SDL.h>
 
+#include <string>
+#include <vector>
+
+class SDL_FileStream
+{
+public:
+    enum class OpenFlags
+    {
+        READ_WRITE = 1 << 0,
+        READ_ONLY = 1 << 1,
+        BINARY = 1 << 2,
+        CONCATENATE = 1 << 3,
+    };
+    
+    
+    SDL_FileStream(const std::string & fullpath, unsigned int flags)
+    :_ops(nullptr)
+    ,_filepath(fullpath)
+    {
+        open(flags);
+    }
+    
+    ~SDL_FileStream()
+    {
+        close();
+    }
+    
+    void close()
+    {
+        if(_ops != nullptr)
+            SDL_RWclose(_ops);
+        
+        _ops = nullptr;
+    }
+    
+    bool isOpen() const
+    {
+        return _ops != nullptr;
+    }
+    
+    bool open(unsigned int flags)
+    {
+        if(isOpen())
+            return false;
+        
+        const std::string sFlags = unMaskFlags(flags);
+        _ops = SDL_RWFromFile(_filepath.c_str(), sFlags.c_str());
+        
+        return isOpen();
+    }
+    
+    unsigned int bytesLeft()
+    {
+        if(!isOpen())
+            return 0;
+        
+        return static_cast<unsigned int>(SDL_RWtell(_ops));
+    }
+    
+    unsigned int read(unsigned int bytes, void * data)
+    {
+        if(!isOpen())
+            return 0;
+        
+        const unsigned int max = bytesLeft();
+        return static_cast<unsigned int>(SDL_RWread(_ops, data, bytes, max));
+    }
+    
+    template<typename T>
+    unsigned int read(unsigned int itemCount, std::vector<T> & val)
+    {
+        const unsigned int numBytesToRead = sizeof(T) * itemCount;
+        const unsigned int indexToReadFrom = (unsigned int)val.size();
+        val.resize(val.size() + itemCount);
+        return read(numBytesToRead, &val[indexToReadFrom]);
+    }
+    
+    template<typename T>
+    unsigned int read(std::vector<T> & val)
+    {
+        const unsigned int numBytesToRead = bytesLeft();
+        const unsigned int itemsToRead = numBytesToRead / sizeof(T);
+        return read(itemsToRead, val);
+    }
+    
+    unsigned int read(std::string & val)
+    {
+        const unsigned int numBytesToRead = bytesLeft();
+        const unsigned int indexToReadFrom = (unsigned int)val.size();
+        val.resize(val.size() + numBytesToRead);
+        return read(numBytesToRead, &val[indexToReadFrom]);
+    }
+
+    unsigned int size() const
+    {
+        if(!isOpen())
+            return 0;
+        
+        return static_cast<unsigned int>(SDL_RWsize(_ops));
+    }
+    
+    bool exists() const
+    {
+        if(isOpen())
+            return true;
+        
+        SDL_FileStream file(_filepath, static_cast<unsigned int>(OpenFlags::READ_ONLY));
+        const bool fileExists = file.isOpen();
+        return fileExists;
+    }
+
+    
+private:
+    SDL_RWops * _ops;
+    std::string _filepath;
+    
+    const std::string unMaskFlags(unsigned int flags)
+    {
+        std::string val;
+        
+        if(flags & static_cast<unsigned int>(OpenFlags::READ_ONLY))
+            val += "r";
+        else if(flags & (static_cast<unsigned int>(OpenFlags::READ_WRITE) | static_cast<unsigned int>(OpenFlags::CONCATENATE)))
+            val += "w+";
+        else if(flags & static_cast<unsigned int>(OpenFlags::READ_WRITE))
+            val += "a+";
+
+        if(flags & static_cast<unsigned int>(OpenFlags::BINARY))
+            val += "b";
+        
+        return val;
+    }
+    
+};
+
 #endif
