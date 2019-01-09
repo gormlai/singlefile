@@ -89,7 +89,7 @@ public:
         if(!isOpen())
             return 0;
         
-        return static_cast<unsigned int>(SDL_RWtell(_ops));
+        return static_cast<unsigned int>(SDL_RWsize(_ops) - SDL_RWtell(_ops));
     }
     
     unsigned int read(unsigned int bytes, void * data)
