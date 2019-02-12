@@ -98,7 +98,8 @@ public:
             return 0;
         
         const unsigned int max = bytesLeft();
-        return static_cast<unsigned int>(SDL_RWread(_ops, data, bytes, max));
+		size_t amountRead = SDL_RWread(_ops, data, bytes, 1);
+        return static_cast<unsigned int>(amountRead);
     }
     
     template<typename T>
