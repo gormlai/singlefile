@@ -97,7 +97,6 @@ public:
         if(!isOpen())
             return 0;
         
-        const unsigned int max = bytesLeft();
 		size_t amountRead = SDL_RWread(_ops, data, bytes, 1);
         return static_cast<unsigned int>(amountRead);
     }
