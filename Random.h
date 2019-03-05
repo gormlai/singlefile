@@ -69,6 +69,26 @@ private:
 	std::uniform_real_distribution<float> _distribution;
 };
 
+template<>
+class UniformDistribution<unsigned int> : public Random<unsigned int>
+{
+public:
+    UniformDistribution(unsigned int lowerLimit, unsigned int upperLimit)
+    :Random<unsigned int>(lowerLimit, upperLimit)
+    ,_distribution(lowerLimit, upperLimit)
+    {
+    }
+    
+    unsigned int generate()
+    {
+        const unsigned int t = _distribution(Random<unsigned int>::_numberGenerator);
+        return t;
+    }
+    
+private:
+    std::uniform_int_distribution<unsigned int> _distribution;
+
+};
 
 #endif
 
