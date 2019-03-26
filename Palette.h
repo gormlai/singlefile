@@ -41,7 +41,11 @@ public:
         constexpr T twopi = T(6.28318530718);
         for(unsigned int i=0 ; i < DIMENSIONS ; i++)
         {
-            T val = palette[0][i] + palette[1][i] * cos(twopi * (palette[2][i]*t + palette[3][i]));
+			const float a = palette[0][i];
+			const float b = palette[1][i];
+			const float c = palette[2][i];
+			const float d = palette[3][i];
+			T val = a + (b-a) * cos(twopi * ((d-c) * t +  c));
             result[i] = val;
         }
     };
