@@ -126,6 +126,27 @@ public:
         return read(numBytesToRead, &val[indexToReadFrom]);
     }
 
+	unsigned int write(unsigned int dataSize, const void * data)
+	{
+		if (!isOpen())
+			return 0;
+
+		size_t amountWritten = SDL_RWwrite(_ops, data, dataSize, 1);
+		return static_cast<unsigned int>(amountWritten);
+	}
+
+	template<typename T>
+	unsigned int write(unsigned int numItems, const T * data)
+	{
+		return write(numItems * sizeof(T), static_cast<const void*>(data));
+	}
+
+	unsigned int write(const std::string & val)
+	{
+		// assumes string is null terminated
+		return write(static_cast<unsigned int>(val.length() + 1), static_cast<const void*>(val.c_str()));
+	}
+
     unsigned int size() const
     {
         if(!isOpen())
