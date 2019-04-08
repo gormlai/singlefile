@@ -35,6 +35,8 @@
 
 #include <string>
 #include <vector>
+#include <cstdio>
+//#include <filesystem>
 
 class SDL_FileStream
 {
@@ -164,8 +166,34 @@ public:
         const bool fileExists = file.isOpen();
         return fileExists;
     }
-
     
+    static std::string userDataDirectory(const std::string & app)
+    {
+        char * path = SDL_GetPrefPath("kotoristudios", app.c_str());
+        std::string rVal(path);
+        SDL_free(path);
+        return rVal;
+    }
+    
+    static bool deleteFile(const std::string & fullpath)
+    {
+        return std::remove(fullpath.c_str())==0;
+    }
+    
+    /*
+    static bool createDirectory(const std::string & dirName, bool recursive = false)
+    {
+        if(recursive)
+            return std::filesystem::create_directories(dirName);
+        else
+            return std::filesystem::create_directory(dirName);
+    }
+
+    static bool fileOrDirectoryExists(const std::string & fullPath)
+    {
+        return std::filesystem::exists(fullPath);
+    }
+    */
 private:
     SDL_RWops * _ops;
     std::string _filepath;
