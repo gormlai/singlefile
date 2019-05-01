@@ -31,13 +31,13 @@ For more information, please refer to <http://unlicense.org/>
 #ifndef _AABB_H_
 #define _AABB_H_
 
-template<typename T, long MIN, long MAX>
+template<typename T, unsigned int DIMENSIONS, long MIN, long MAX>
 class AABB
 {
 public:
 	AABB() 
-		:_min(MAX)
-		,_max(MIN)
+		:_min(T(MAX))
+		,_max(T(MIN))
 	{
 	}
 
@@ -55,8 +55,11 @@ public:
 
 	void extend(const T & p)
 	{
-		_min = std::min<T>(p, _min);
-		_max = std::max<T>(p, _max);
+		for (unsigned int dim = 0; dim < DIMENSIONS; dim++)
+		{
+			_min[dim] = std::min<typeof(T[0])>(p[dim], _min[dim]);
+			_max[dim] = std::max<typeof(T[0])>(p[dim], _max[dim]);
+		}
 	}
 
 
