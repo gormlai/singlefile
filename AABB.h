@@ -31,14 +31,18 @@ For more information, please refer to <http://unlicense.org/>
 #ifndef _AABB_H_
 #define _AABB_H_
 
-template<typename T, unsigned int DIMENSIONS, long MIN, long MAX>
+template<typename T, typename ElementType, unsigned int DIMENSIONS, long MIN, long MAX>
 class AABB
 {
 public:
 	AABB() 
-		:_min(T(MAX))
-		,_max(T(MIN))
 	{
+		for (unsigned int dim = 0; dim < DIMENSIONS; dim++)
+		{
+			_min[dim] = ElementType(MAX);
+			_max[dim] = ElementType(MIN);
+		}
+
 	}
 
 	AABB(const T & min, const T & max)
@@ -57,11 +61,16 @@ public:
 	{
 		for (unsigned int dim = 0; dim < DIMENSIONS; dim++)
 		{
-			_min[dim] = std::min<typeof(T[0])>(p[dim], _min[dim]);
-			_max[dim] = std::max<typeof(T[0])>(p[dim], _max[dim]);
+			_min[dim] = std::min<ElementType>(p[dim], _min[dim]);
+			_max[dim] = std::max<ElementType>(p[dim], _max[dim]);
 		}
 	}
 
+	inline T getMin() const { return _min; }
+	inline T getMax() const { return _max; }
+    inline T getSize() const { return (getMax() - getMin()); }
+    inline T getCenter() const { return (getMin() + getMax()) / ((ElementType)(2)); }
+	inline void getMinMax(T & min, T & max) const { min = _min; max = _max; }
 
 
 private:
