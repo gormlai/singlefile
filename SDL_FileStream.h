@@ -179,6 +179,15 @@ public:
     {
         return std::remove(fullpath.c_str())==0;
     }
+
+	static const std::string pathSeparator() 
+	{
+#if defined(_WIN32) || defined(_WIN64)
+		return "\\";
+#else
+		return "/";
+#endif
+	}
     
     /*
     static bool createDirectory(const std::string & dirName, bool recursive = false)
