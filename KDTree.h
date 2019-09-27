@@ -75,7 +75,9 @@ public:
 	void clear()
 	{
 		_points.clear();
+		_splittingPlanes.clear();
 		_root = -1;
+		_pointAdded = true;
 	}
 
 	size_t getNumPoints() const { return _points.size(); }
@@ -86,6 +88,10 @@ public:
 	
 	void addPoints(const std::vector<PointClass> & points)
 	{
+		const size_t requiredSize = points.size() + _points.size();
+		if (_points.capacity() < requiredSize)
+			_points.reserve((requiredSize+1)*2);
+
 		_points.insert(_points.end(), points.begin(), points.end());
 		_pointAdded = true;
 	}
@@ -215,7 +221,7 @@ protected:
 		}
 		
 	}
-
+	
 	inline void inside(std::vector<int> & searchStack, const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices)
 	{
 		if(_points.empty() || _root == -1)
@@ -276,7 +282,7 @@ protected:
 		}
 		
 	}
-
+	
 	void nearestNeighbours(std::vector<int> & searchStack, const PointClass & center, unsigned int count, std::vector<unsigned int> & indices)
 	{
 		if(_points.empty() || _root == -1)
@@ -336,8 +342,8 @@ protected:
 			return priorityQueue[count-1]._distSquared;
 		};
 		
-		if(searchStack.size() < _points.size())
-			searchStack.resize(_points.size());
+		if(searchStack.size() < _points.size()+2)
+			searchStack.resize(_points.size()+2);
 		
 		int searchIndex=0;
 		searchStack[searchIndex] = _root;
@@ -489,7 +495,7 @@ template<typename PointClass, typename RadiusType>
 class KDTree2D : public KDTree<PointClass, 2, RadiusType>
 {
 public:
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = true, const PointClass & wrapDimensions = PointClass())
 	{
 		std::vector<int> & searchStack = KDTree<PointClass, 2, RadiusType>::_searchStack;
 		if (!wrapSearch)
@@ -548,7 +554,7 @@ template<typename PointClass, typename RadiusType>
 class KDTree3D : public KDTree<PointClass, 3, RadiusType>
 {
 public:
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = true, const PointClass & wrapDimensions = PointClass())
 	{
 		std::vector<int> & searchStack = KDTree<PointClass, 3, RadiusType>::_searchStack;
 		if (!wrapSearch)
