@@ -188,6 +188,20 @@ public:
 		return "/";
 #endif
 	}
+
+    template<typename T>
+    static std::vector<T> readFile(const std::string fullFilePath, unsigned int fileFlags)
+    {
+        std::vector<T> data;
+        SDL_FileStream stream(fullFilePath, (unsigned int)SDL_FileStream::OpenFlags::READ_ONLY | (unsigned int)SDL_FileStream::OpenFlags::BINARY);
+        if (stream.isOpen())
+        {
+            stream.read(data);
+            stream.close();
+        }
+        return data;
+    }
+
     
     /*
     static bool createDirectory(const std::string & dirName, bool recursive = false)
