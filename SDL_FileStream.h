@@ -106,6 +106,9 @@ public:
     template<typename T>
     unsigned int read(unsigned int itemCount, std::vector<T> & val)
     {
+        if(itemCount == 0)
+            return 0;
+
         const unsigned int numBytesToRead = sizeof(T) * itemCount;
         const unsigned int indexToReadFrom = (unsigned int)val.size();
         val.resize(val.size() + itemCount);
