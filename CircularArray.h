@@ -1,6 +1,8 @@
 #ifndef _CIRCULAR_ARRAY_H_
 #define _CIRCULAR_ARRAY_H_
 
+#include <string.h>
+
 /*
 LICENSE - this file is public domain
  
