@@ -156,6 +156,103 @@ private:
 	int _root;
 	
 	bool _pointAdded;
+
+    struct PriorityItem
+    {
+        unsigned int _index;
+        RadiusType _distSquared;
+
+        PriorityItem()
+        :_index(0xFFFFFFFF)
+        ,_distSquared(0) {}
+
+        PriorityItem(unsigned int index, RadiusType distSquared)
+        :_index(index)
+        ,_distSquared(distSquared) {}
+
+        PriorityItem(const PriorityItem & src)
+        :_index(src._index)
+        ,_distSquared(src._distSquared) {}
+
+
+        bool operator < (const PriorityItem & right) const
+        {
+            return _distSquared < right._distSquared;
+        }
+
+        PriorityItem & operator = (const PriorityItem & right)
+        {
+            _index = right._index;
+            _distSquared = right._distSquared;
+            return *this;
+        }
+
+    };
+
+    class PriorityQueue
+    {
+    public:
+        PriorityQueue(unsigned int maxSize)
+        :_maxSize(maxSize)
+        ,_count(0)
+        ,_items(maxSize )
+        {
+        }
+
+        void clear()
+        {
+            _count = 0;
+        }
+
+        void insert(const PriorityItem & item)
+        {
+            // insert it at the right place
+            if(_items.empty())
+            {
+                _items.push_back(item);
+            }
+            else
+            {
+                unsigned int i=0;
+                unsigned int newPlace = _count;
+                for( ; i <  _count ; i++)
+                {
+                    if(_items[i]._distSquared > item._distSquared)
+                    {
+                        newPlace = i;
+                        break;
+                    }
+                }
+
+                if(_count < _maxSize)
+                    _count++;
+
+                if(newPlace < _count)
+                {
+                    for(i=_count-1 ; i > newPlace ; i--)
+                    {
+                        _items[i] = _items[i-1];
+                    }
+                    _items[newPlace] = item;
+                }
+
+            }
+        }
+
+        int size() const
+        {
+            return (int)_count;
+        }
+
+        PriorityItem & operator [](int index) { return _items[index]; }
+        const PriorityItem & operator [](int index) const { return _items[index]; }
+
+    private:
+        std::vector<PriorityItem> _items;
+        unsigned int _maxSize;
+        unsigned int _count;
+    };
+
 	
 protected:
 	bool compare(const SplittingPlane &a, const SplittingPlane &b, int axis)
@@ -288,102 +385,14 @@ protected:
 		if(_points.empty() || _root == -1)
 			return;
 		
-		struct PriorityItem
-		{
-			unsigned int _index;
-			RadiusType _distSquared;
-
-            PriorityItem()
-            :_index(0xFFFFFFFF)
-            ,_distSquared(0) {}
-			
-			PriorityItem(unsigned int index, RadiusType distSquared)
-			:_index(index)
-			,_distSquared(distSquared) {}
-
-            PriorityItem(const PriorityItem & src)
-            :_index(src._index)
-            ,_distSquared(src._distSquared) {}
-
-			
-			bool operator < (const PriorityItem & right) const
-			{
-				return _distSquared < right._distSquared;
-			}
-
-            PriorityItem & operator = (const PriorityItem & right)
-            {
-                _index = right._index;
-                _distSquared = right._distSquared;
-                return *this;
-            }
-
-		};
+		PriorityQueue _priorityQueue(count);
 		
-		class PriorityQueue
+		auto radius = [count, &_priorityQueue]()
 		{
-		public:
-			PriorityQueue(unsigned int maxSize)
-			:_maxSize(maxSize)
-			{
-				_items.reserve(maxSize+1);
-			}
-			
-			void insert(const PriorityItem & item)
-			{
-                // insert it at the right place
-                if(_items.empty())
-                {
-                    _items.push_back(item);
-                }
-                else
-                {
-                    unsigned int i=0;
-                    unsigned int newPlace = _items.size();
-                    for( ; i <  _items.size() ; i++)
-                    {
-                        if(_items[i]._distSquared > item._distSquared)
-                        {
-                            newPlace = i;
-                            break;
-                        }
-                    }
-
-                    if(_items.size() < _maxSize)
-                        _items.resize(_items.size()+1);
-
-                    if(newPlace < _items.size())
-                    {
-                        for(i=_items.size()-1 ; i > newPlace ; i--)
-                        {
-                            _items[i] = _items[i-1];
-                        }
-                        _items[newPlace] = item;
-                    }
-
-                }
-			}
-			
-			int size() const
-			{
-				return (int)_items.size();
-			}
-			
-			PriorityItem & operator [](int index) { return _items[index]; }
-			const PriorityItem & operator [](int index) const { return _items[index]; }
-			
-		private:
-			std::vector<PriorityItem> _items;
-			unsigned int _maxSize;
-		};
-		PriorityQueue priorityQueue(count);
-		
-		auto radius = [count, &priorityQueue]()
-		{
-			if(priorityQueue.size() < count)
+			if(_priorityQueue.size() < count)
 				return FLT_MAX;
 			
-			return priorityQueue[count-1]._distSquared;
+			return _priorityQueue[count-1]._distSquared;
 		};
 		
 		if(searchStack.size() < _points.size()+2)
@@ -412,7 +421,7 @@ protected:
 			
 			if (squaredDistance <= radius() * radius())
 			{
-				priorityQueue.insert({node->orgIndex, squaredDistance});
+				_priorityQueue.insert({node->orgIndex, squaredDistance});
 			}
 			
 			// traverse towards root
@@ -434,9 +443,11 @@ protected:
 				searchStack[++searchIndex] = node->right;
 			}
 		}
-		
-		for(int i=0 ; i < priorityQueue.size() ; i++)
-			indices.push_back(priorityQueue[i]._index);
+
+        int startIndex = indices.size();
+        indices.resize(indices.size() + _priorityQueue.size());
+		for(int i= 0; i < _priorityQueue.size() ; i++)
+			indices[startIndex+i] = _priorityQueue[i]._index;
 		
 	}
 	
