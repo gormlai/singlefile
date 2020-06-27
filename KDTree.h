@@ -292,15 +292,32 @@ protected:
 		{
 			unsigned int _index;
 			RadiusType _distSquared;
+
+            PriorityItem()
+            :_index(0xFFFFFFFF)
+            ,_distSquared(0) {}
 			
 			PriorityItem(unsigned int index, RadiusType distSquared)
 			:_index(index)
 			,_distSquared(distSquared) {}
+
+            PriorityItem(const PriorityItem & src)
+            :_index(src._index)
+            ,_distSquared(src._distSquared) {}
+
 			
 			bool operator < (const PriorityItem & right) const
 			{
 				return _distSquared < right._distSquared;
 			}
+
+            PriorityItem & operator = (const PriorityItem & right)
+            {
+                _index = right._index;
+                _distSquared = right._distSquared;
+                return *this;
+            }
+
 		};
 		
 		class PriorityQueue
@@ -314,10 +331,37 @@ protected:
 			
 			void insert(const PriorityItem & item)
 			{
-				_items.push_back(item);
-				std::sort(_items.begin(), _items.end());
-				while(_items.size()>_maxSize)
-					_items.pop_back();
+                // insert it at the right place
+                if(_items.empty())
+                {
+                    _items.push_back(item);
+                }
+                else
+                {
+                    unsigned int i=0;
+                    unsigned int newPlace = _items.size();
+                    for( ; i <  _items.size() ; i++)
+                    {
+                        if(_items[i]._distSquared > item._distSquared)
+                        {
+                            newPlace = i;
+                            break;
+                        }
+                    }
+
+                    if(_items.size() < _maxSize)
+                        _items.resize(_items.size()+1);
+
+                    if(newPlace < _items.size())
+                    {
+                        for(i=_items.size()-1 ; i > newPlace ; i--)
+                        {
+                            _items[i] = _items[i-1];
+                        }
+                        _items[newPlace] = item;
+                    }
+
+                }
 			}
 			
 			int size() const
