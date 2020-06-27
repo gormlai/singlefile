@@ -62,12 +62,14 @@ public:
 public:
 	KDTree()
 		:_root(-1)
-	,_pointAdded(true)
+        ,_pointAdded(true)
+        ,_priorityQueue(10)
 	{}
 
 	KDTree(unsigned int size)
-		:_root(-1)
+        :_root(-1)
 		,_pointAdded(true)
+        ,_priorityQueue(10)
 	{
 		reserve(size);
 	}
@@ -117,30 +119,14 @@ public:
 		outside(_searchStack, center, radius, indices);
 	}
 
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, const PointClass & wrapDimensions = PointClass())
 	{
-		if (!wrapSearch)
-		{
-			_searchStack.clear();
-			nearestNeighbours(_searchStack, center, count, indices);
-		}
-		else
-		{
-			assert(0); // TODO: fix this method. Until then, use a specialization. They are faster anyway!
-		}
+        assert(0); // TODO: fix this method. Until then, use a specialization. They are faster anyway!
 	}
 	
 	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
 	{
-		if (!wrapSearch)
-		{
-			_searchStack.clear();
-			inside(_searchStack, center, radius, indices);
-		}
-		else
-		{
-			assert(0); // TODO: fix this method. Until then, use a specialization. They are faster anyway!
-		}
+        assert(0); // TODO: fix this method. Until then, use a specialization. They are faster anyway!
 	}
 	
 	inline void balance()
@@ -195,21 +181,35 @@ private:
         PriorityQueue(unsigned int maxSize)
         :_maxSize(maxSize)
         ,_count(0)
-        ,_items(maxSize )
+        ,_items(maxSize)
         {
         }
 
-        void clear()
+        void reset(unsigned int newMaxSize)
         {
             _count = 0;
+            if(newMaxSize > _maxSize)
+            {
+                _items.resize(newMaxSize);
+                _maxSize = newMaxSize;
+            }
         }
+
+        inline float radius(unsigned int val)
+        {
+            if(_count < val)
+                return FLT_MAX;
+
+            return _items[val-1]._distSquared;
+        };
+
 
         void insert(const PriorityItem & item)
         {
             // insert it at the right place
-            if(_items.empty())
+            if(_count==0)
             {
-                _items.push_back(item);
+                _items[_count++] = item;
             }
             else
             {
@@ -330,7 +330,8 @@ protected:
 			searchStack.resize(_points.size());
 		
 		searchStack[searchIndex] = _root;
-		
+
+        const float squaredRadius = radius * radius;
 		while(searchIndex>=0)
 		{
 			int nodeIndex = searchStack[searchIndex--];
@@ -350,8 +351,8 @@ protected:
 			RadiusType squaredDistance = 0;
 			for (int i = 0; i < DIM; i++)
 				squaredDistance += dir[i] * dir[i];
-			
-			if (squaredDistance <= radius * radius)
+
+			if (squaredDistance <= squaredRadius)
 				indices.push_back(node->orgIndex);
 			
 			// traverse towards root
@@ -385,16 +386,9 @@ protected:
 		if(_points.empty() || _root == -1)
 			return;
 		
-		PriorityQueue _priorityQueue(count);
+        _priorityQueue.reset(count);
 		
-		auto radius = [count, &_priorityQueue]()
-		{
-			if(_priorityQueue.size() < count)
-				return FLT_MAX;
-			
-			return _priorityQueue[count-1]._distSquared;
-		};
-		
+
 		if(searchStack.size() < _points.size()+2)
 			searchStack.resize(_points.size()+2);
 		
@@ -418,8 +412,9 @@ protected:
 			RadiusType squaredDistance = 0;
 			for (int i = 0; i < DIM; i++)
 				squaredDistance += dir[i] * dir[i];
-			
-			if (squaredDistance <= radius() * radius())
+
+            const float rad = _priorityQueue.radius(count);
+			if (squaredDistance <= rad*rad)
 			{
 				_priorityQueue.insert({node->orgIndex, squaredDistance});
 			}
@@ -428,13 +423,13 @@ protected:
 			if (signedDistanceToPlane < 0)
 			{
 				searchStack[++searchIndex] = node->left;
-				if(absDistance < radius() + EPSILON)
+                if(absDistance < rad + EPSILON)
 					searchStack[++searchIndex] = node->right;
 			}
 			else if (signedDistanceToPlane > 0)
 			{
 				searchStack[++searchIndex] = node->right;
-				if (absDistance < radius() + EPSILON)
+                if (absDistance < rad + EPSILON)
 					searchStack[++searchIndex] = node->left;
 			}
 			else
@@ -444,11 +439,8 @@ protected:
 			}
 		}
 
-        int startIndex = indices.size();
-        indices.resize(indices.size() + _priorityQueue.size());
 		for(int i= 0; i < _priorityQueue.size() ; i++)
-			indices[startIndex+i] = _priorityQueue[i]._index;
-		
+            indices.push_back(_priorityQueue[i]._index);		
 	}
 	
 	inline void outside(std::vector<int> & searchStack, const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices)
@@ -487,6 +479,7 @@ protected:
 private:
 	// for the easy to use methods
 	std::vector<BalanceDescriptor> _balancingStack;
+    PriorityQueue _priorityQueue;
 protected:
 	// for the easy to use methods
 	std::vector<int> _searchStack;
@@ -497,50 +490,34 @@ template<typename PointClass, typename RadiusType>
 class KDTree1D : public KDTree<PointClass, 1, RadiusType>
 {
 public:
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices,  const PointClass & wrapDimensions = PointClass())
 	{
+        const int wrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
 		std::vector<int> & searchStack = KDTree<PointClass, 1, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
-		}
-		else
-		{
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::nearestNeighbours(searchStack, center - wrapDimensions[0], count, indices);
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::nearestNeighbours(searchStack, center + wrapDimensions[0], count, indices);
-
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        for(int x = 0 ; x < wrap ; x++)
+        {
+            searchStack.clear();
+            PointClass start = (wrap==3) ? center + (x-1)*wrapDimensions[0] : center;
+            KDTree<PointClass, 1, RadiusType>::nearestNeighbours(searchStack, start, count, indices);
+        }
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
-	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices,  const PointClass & wrapDimensions = PointClass())
 	{
-		std::vector<int> & searchStack = KDTree<PointClass, 1, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::inside(searchStack, center, radius, indices);
-		}
-		else
-		{
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::inside(searchStack, center - wrapDimensions[0], radius, indices);
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::inside(searchStack, center, radius, indices);
-			searchStack.clear();
-			KDTree<PointClass, 1, RadiusType>::inside(searchStack, center + wrapDimensions[0], radius, indices);
-
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        const int wrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
+        std::vector<int> & searchStack = KDTree<PointClass, 1, RadiusType>::_searchStack;
+        for(int x = 0 ; x < wrap ; x++)
+        {
+            searchStack.clear();
+            PointClass start = (wrap==3) ? center + (x-1)*wrapDimensions[0] : center;
+            KDTree<PointClass, 1, RadiusType>::inside(searchStack, start, radius, indices);
+        }
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
 };
@@ -550,56 +527,48 @@ template<typename PointClass, typename RadiusType>
 class KDTree2D : public KDTree<PointClass, 2, RadiusType>
 {
 public:
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = true, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, const PointClass & wrapDimensions = PointClass())
 	{
-		std::vector<int> & searchStack = KDTree<PointClass, 2, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass, 2, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
-		}
-		else
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				for (int y = 0; y < 3; y++)
-				{
-					searchStack.clear();
-					PointClass start = center + PointClass(wrapDimensions[0] * (RadiusType(x - 1)), wrapDimensions[1] * (RadiusType(y - 1)));
-					KDTree<PointClass, 2, RadiusType>::nearestNeighbours(searchStack, start, count, indices);
-				}
-			}
+        int xWrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
+        int yWrap = std::abs(wrapDimensions[1])>EPSILON ? 3 : 1;
+        std::vector<int> & searchStack = KDTree<PointClass, 2, RadiusType>::_searchStack;
+        for(int y=0 ; y < yWrap ; y++)
+        {
+            const RadiusType yStart = (yWrap==3) ? center[1] + (y-1)*wrapDimensions[1] : center[1];
+            for(int x=0 ; x < xWrap ; x++)
+            {
+                const RadiusType xStart = (xWrap==3) ? center[0] + (x-1)*wrapDimensions[0] : center[0];
+                const PointClass start(xStart, yStart);
+                searchStack.clear();
+                KDTree<PointClass, 2, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
+            }
+        }
 
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
-	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, const PointClass & wrapDimensions = PointClass())
 	{
-		std::vector<int> & searchStack = KDTree<PointClass, 2, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass, 2, RadiusType>::inside(searchStack, center, radius, indices);
-		}
-		else
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				for (int y = 0; y < 3; y++)
-				{
-					searchStack.clear();
-					PointClass start = center + PointClass(wrapDimensions[0] * (RadiusType(x - 1)), wrapDimensions[1] * (RadiusType(y - 1)));
-					KDTree<PointClass, 2, RadiusType>::inside(searchStack, start, radius, indices);
-				}
-			}
+        int xWrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
+        int yWrap = std::abs(wrapDimensions[1])>EPSILON ? 3 : 1;
+        std::vector<int> & searchStack = KDTree<PointClass, 2, RadiusType>::_searchStack;
+        for(int y=0 ; y < yWrap ; y++)
+        {
+            const RadiusType yStart = (yWrap==3) ? center[1] + (y-1)*wrapDimensions[1] : center[1];
+            for(int x=0 ; x < xWrap ; x++)
+            {
+                const RadiusType xStart = (xWrap==3) ? center[0] + (x-1)*wrapDimensions[0] : center[0];
+                const PointClass start(xStart, yStart);
+                searchStack.clear();
+                KDTree<PointClass, 2, RadiusType>::inside(searchStack, center, radius, indices);
+            }
+        }
 
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
 };
@@ -609,63 +578,56 @@ template<typename PointClass, typename RadiusType>
 class KDTree3D : public KDTree<PointClass, 3, RadiusType>
 {
 public:
-	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, bool wrapSearch = true, const PointClass & wrapDimensions = PointClass())
+	inline void nearestNeighbours(const PointClass & center, unsigned int count, std::vector<unsigned int> & indices, const PointClass & wrapDimensions = PointClass())
 	{
-		std::vector<int> & searchStack = KDTree<PointClass, 3, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass, 3, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
-		}
-		else
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				for (int y = 0; y < 3; y++)
-				{
-					for (int z = 0; z < 3; z++)
-					{
-						searchStack.clear();
-						PointClass start = center + PointClass(wrapDimensions[0] * (RadiusType(x - 1)), wrapDimensions[1] * (RadiusType(y - 1)), wrapDimensions[2] * (RadiusType(z - 1)));
-						KDTree<PointClass, 3, RadiusType>::nearestNeighbours(searchStack, start, count, indices);
-					}
-
-				}
-			}
-
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        int xWrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
+        int yWrap = std::abs(wrapDimensions[1])>EPSILON ? 3 : 1;
+        int zWrap = std::abs(wrapDimensions[2])>EPSILON ? 3 : 1;
+        std::vector<int> & searchStack = KDTree<PointClass, 3, RadiusType>::_searchStack;
+        for(int z=0 ; z < zWrap ; z++)
+        {
+            const RadiusType zStart = (zWrap==3) ? center[2] + (z-1)*wrapDimensions[2] : center[2];
+            for(int y=0 ; y < yWrap ; y++)
+            {
+                const RadiusType yStart = (yWrap==3) ? center[1] + (y-1)*wrapDimensions[1] : center[1];
+                for(int x=0 ; x < xWrap ; x++)
+                {
+                    const RadiusType xStart = (xWrap==3) ? center[0] + (x-1)*wrapDimensions[0] : center[0];
+                    const PointClass start(xStart, yStart, zStart);
+                    searchStack.clear();
+                    KDTree<PointClass, 3, RadiusType>::nearestNeighbours(searchStack, center, count, indices);
+                }
+            }
+        }
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
-	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, bool wrapSearch = false, const PointClass & wrapDimensions = PointClass())
+	inline void inside(const PointClass & center, RadiusType radius, std::vector<unsigned int> & indices, const PointClass & wrapDimensions = PointClass())
 	{
-		std::vector<int> & searchStack = KDTree<PointClass, 3, RadiusType>::_searchStack;
-		if (!wrapSearch)
-		{
-			searchStack.clear();
-			KDTree<PointClass,3, RadiusType>::inside(searchStack, center, radius, indices);
-		}
-		else
-		{
-			for (int x = 0; x < 3; x++)
-			{
-				for (int y = 0; y < 3; y++)
-				{
-					for (int z = 0; z < 3; z++)
-					{
-						searchStack.clear();
-						PointClass start = center + PointClass(wrapDimensions[0] * (RadiusType(x - 1)), wrapDimensions[1] * (RadiusType(y - 1)), wrapDimensions[2] * (RadiusType(z - 1)));
-						KDTree<PointClass, 3, RadiusType>::inside(searchStack, start, radius, indices);
-					}
-				}
-			}
-
-			// remove duplicates
-			std::sort(indices.begin(), indices.end());
-			indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-		}
+        int xWrap = std::abs(wrapDimensions[0])>EPSILON ? 3 : 1;
+        int yWrap = std::abs(wrapDimensions[1])>EPSILON ? 3 : 1;
+        int zWrap = std::abs(wrapDimensions[2])>EPSILON ? 3 : 1;
+        std::vector<int> & searchStack = KDTree<PointClass, 3, RadiusType>::_searchStack;
+        for(int z=0 ; z < zWrap ; z++)
+        {
+            const RadiusType zStart = (zWrap==3) ? center[2] + (z-1)*wrapDimensions[2] : center[2];
+            for(int y=0 ; y < yWrap ; y++)
+            {
+                const RadiusType yStart = (yWrap==3) ? center[1] + (y-1)*wrapDimensions[1] : center[1];
+                for(int x=0 ; x < xWrap ; x++)
+                {
+                    const RadiusType xStart = (xWrap==3) ? center[0] + (x-1)*wrapDimensions[0] : center[0];
+                    const PointClass start(xStart, yStart, zStart);
+                    searchStack.clear();
+                    KDTree<PointClass, 3, RadiusType>::inside(searchStack, center, radius, indices);
+                }
+            }
+        }
+        // remove duplicates
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 	}
 
 };
