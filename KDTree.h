@@ -383,7 +383,10 @@ protected:
 	
 	void nearestNeighbours(std::vector<int> & searchStack, const PointClass & center, unsigned int count, std::vector<unsigned int> & indices)
 	{
-		if(_points.empty() || _root == -1)
+		// Requesting zero neighbours should append no results. Return before querying
+		// the priority queue: radius(count) indexes count - 1, which wraps to a very
+		// large unsigned index when count is zero and causes an out-of-bounds read.
+		if(count == 0 || _points.empty() || _root == -1)
 			return;
 		
         _priorityQueue.reset(count);
@@ -450,11 +453,15 @@ protected:
 		inside(searchStack, center, radius, insidePoints);
 		if(insidePoints.empty())
 		{
+			// Every point is outside. Append point indices starting at zero, even if
+			// the caller already has results in indices. i is an output position, so
+			// subtract the original output size, not the number of points in the tree
+			// (which could underflow and produce invalid point indices).
 			const unsigned int startIndex = (unsigned int)indices.size();
 			const unsigned int endIndex = startIndex + (unsigned int)_points.size();
 			indices.resize(endIndex);
 			for(unsigned int i=startIndex ; i < endIndex ; i++)
-				indices[i] = i - (unsigned int)_points.size();
+				indices[i] = i - startIndex;
 			return;
 			
 		}
@@ -463,7 +470,10 @@ protected:
 		while(counter<insidePoints[0])
 			indices.push_back(counter++);
 		
-		for(unsigned int index = 1 ; index < insidePoints.size()-1 ; index++)
+		// Points between consecutive inside indices are outside. Start with the
+		// first pair (0, 1); starting at 1 would omit that first gap. Requiring a
+		// next element also means a single inside point has no gaps to inspect.
+		for(unsigned int index = 0 ; index + 1 < insidePoints.size() ; index++)
 		{
 			unsigned int startValue = insidePoints[index];
 			unsigned int endValue = insidePoints[index+1];
